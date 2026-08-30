@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Roblox Audio Moderation Checker", page_icon="🎵")
 
 st.title("🎵 Detector de Moderación de Audio para Roblox")
-st.write("Sube tu archivo de audio para analizar picos, saturación y subgraves.")
+st.write("Sube tu archivo de audio para analizar picos, saturación y espectro de frecuencias.")
 
 uploaded_file = st.file_uploader("Selecciona tu archivo de audio (MP3 o WAV)", type=["mp3", "wav"])
 
@@ -17,66 +17,63 @@ if uploaded_file is not None:
         # Cargar audio
         y, sr = librosa.load(uploaded_file, sr=None)
         
-        # 1. Pico Máximo
+        # 1. Medición de Pico Máximo Real (dBFS)
         max_amplitude = np.max(np.abs(y))
         peak_db = 20 * np.log10(max_amplitude) if max_amplitude > 0 else -100.0
         
-        # 2. Análisis Espectral (FFT)
+        # 2. Análisis Espectral (STFT absoluto)
         n_fft = 2048
         S = np.abs(librosa.stft(y, n_fft=n_fft))
-        S_norm = S / (np.max(S) + 1e-6)
         
         freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-        mean_spectrum = np.mean(S_norm, axis=1)
+        mean_spectrum = np.mean(S, axis=1)
+        # Convertir a dBFS absolutos
         mean_spectrum_db = 20 * np.log10(mean_spectrum + 1e-6)
         
-        # Frecuencias de riesgo
+        # Filtros de banda de frecuencia
         sub_bass_mask = (freqs >= 20) & (freqs <= 60)
         sub_bass_mean = np.mean(mean_spectrum_db[sub_bass_mask]) if np.any(sub_bass_mask) else -100
         
         ultra_high_mask = freqs >= 15000
         ultra_high_mean = np.mean(mean_spectrum_db[ultra_high_mask]) if np.any(ultra_high_mask) else -100
 
-        # --- REVISIÓN INDEPENDIENTE DE TODOS LOS DETALLES ---
-        reasons = []
-        is_no_apto = False
-        is_riesgo = False
+        # --- EVALUACIÓN GENERAL DE ESTADO ---
+        is_no_apto = peak_db > 8.9 or sub_bass_mean > -18.0
+        is_riesgo = (0.0 <= peak_db <= 8.9) or (-25.0 < sub_bass_mean <= -18.0) or (ultra_high_mean > -20.0)
 
-        # Evaluador 1: Picos de volumen
-        if peak_db > 8.9:
-            is_no_apto = True
-            reasons.append(f"🔴 **Saturación Crítica:** El pico alcanza **{peak_db:.2f} dB** (Mayor a 8.9 dB).")
-        elif peak_db >= 0.0 and peak_db <= 8.9:
-            is_riesgo = True
-            reasons.append(f"🟡 **Pico en Zona de Riesgo:** El pico alcanza **{peak_db:.2f} dB** (Entre 0.0 y 8.9 dB).")
-
-        # Evaluador 2: Subgraves continuos
-        if sub_bass_mean > -18.0:
-            is_no_apto = True
-            reasons.append(f"🔴 **Subgraves Excesivos (<60 Hz):** La presencia de frecuencias ultrabajas es muy alta ({sub_bass_mean:.1f} dB medio). Riesgo de Disruptive Audio.")
-        elif sub_bass_mean > -25.0:
-            is_riesgo = True
-            reasons.append(f"🟡 **Subgraves Elevados:** Nivel de subgrave medio en {sub_bass_mean:.1f} dB.")
-
-        # Evaluador 3: Agudos estridentes
-        if ultra_high_mean > -20.0:
-            is_riesgo = True
-            reasons.append(f"🟡 **Agudos Altos (>15 kHz):** Acumulación alta en frecuencias ultrasónicas ({ultra_high_mean:.1f} dB medio).")
-
-        # --- MOSTRAR RESULTADO FINAL Y DETALLES ---
         st.subheader("📊 Resultado de Evaluación")
 
         if is_no_apto:
-            st.error(f"❌ **ESTADO: NO APTO**\n\nEste archivo tiene altas probabilidades de ser rechazado o marcado como Disruptive Audio.")
+            st.error("❌ **ESTADO: NO APTO**\n\nEste archivo superó los límites permitidos y corre alto riesgo de ser rechazado.")
         elif is_riesgo:
-            st.warning(f"⚠️ **ESTADO: PUEDE SER NO APTO!**\n\nEl audio está en zona límite. Podría pasar o ser rechazado dependiendo de la moderación.")
+            st.warning("⚠️ **ESTADO: PUEDE SER NO APTO!**\n\nEl audio está en zona límite de moderación.")
         else:
-            st.success(f"✅ **ESTADO: APTO**\n\nEl pico está por debajo de 0.0 dB ({peak_db:.2f} dB) y las frecuencias están equilibradas.")
+            st.success("✅ **ESTADO: APTO**\n\nEl audio cumple con los márgenes de volumen y espectro seguro.")
 
-        if reasons:
-            st.write("**Detalles del análisis encontrados:**")
-            for r in reasons:
-                st.markdown(r)
+        # --- MOSTRAR SIEMPRE TODOS LOS DATOS TÉCNICOS ---
+        st.write("**Desglose detallado del análisis:**")
+
+        # Registro 1: Pico y Saturación
+        if peak_db > 8.9:
+            st.markdown(f"🔴 **Pico Máximo (dBFS):** `{peak_db:.2f} dB` — **Saturación Crítica** (Supera el límite de 8.9 dB).")
+        elif peak_db >= 0.0:
+            st.markdown(f"🟡 **Pico Máximo (dBFS):** `{peak_db:.2f} dB` — **Riesgo de Saturación** (Entre 0.0 y 8.9 dB).")
+        else:
+            st.markdown(f"🟢 **Pico Máximo (dBFS):** `{peak_db:.2f} dB` — **Nivel Seguro** (Por debajo de 0.0 dB).")
+
+        # Registro 2: Subgraves
+        if sub_bass_mean > -18.0:
+            st.markdown(f"🔴 **Subgraves (<60 Hz):** `{sub_bass_mean:.1f} dB` medio — **Excesivo** (Riesgo alto de Disruptive Audio).")
+        elif sub_bass_mean > -25.0:
+            st.markdown(f"🟡 **Subgraves (<60 Hz):** `{sub_bass_mean:.1f} dB` medio — **Elevado**.")
+        else:
+            st.markdown(f"🟢 **Subgraves (<60 Hz):** `{sub_bass_mean:.1f} dB` medio — **Normal**.")
+
+        # Registro 3: Agudos
+        if ultra_high_mean > -20.0:
+            st.markdown(f"🟡 **Agudos (>15 kHz):** `{ultra_high_mean:.1f} dB` medio — **Muy Altos**.")
+        else:
+            st.markdown(f"🟢 **Agudos (>15 kHz):** `{ultra_high_mean:.1f} dB` medio — **Equilibrados**.")
 
         # --- GRÁFICA DE ESPECTRO ---
         st.subheader("📈 Análisis de Espectro (Frecuencias)")
@@ -84,11 +81,10 @@ if uploaded_file is not None:
         ax.plot(freqs, mean_spectrum_db, color='#8a2be2')
         ax.set_xscale('log')
         ax.set_xlim(20, sr // 2)
-        ax.set_ylim(-80, 5)
         ax.axvspan(20, 60, color='red', alpha=0.15, label='Zona de riesgo por Subgraves')
-        ax.set_title("Espectro de Frecuencia Normalizado (Hz vs dBFS)")
+        ax.set_title("Espectro de Frecuencia (Hz vs dBFS)")
         ax.set_xlabel("Frecuencia (Hz)")
-        ax.set_ylabel("Amplitud Relativa (dB)")
+        ax.set_ylabel("Amplitud Real (dBFS)")
         ax.legend()
         ax.grid(True, which="both", ls="--", alpha=0.5)
         st.pyplot(fig)
