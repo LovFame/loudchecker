@@ -42,14 +42,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎵 Roblox Audio Moderation Checker Pro")
-st.caption("Verificador avanzado de saturación, balance espectral y prevención de baneo por *Disruptive Audio*.")
+st.caption("Verificador avanzado de saturación, picos transitorios y prevención de baneo por *Disruptive Audio*.")
 
 uploaded_file = st.file_uploader("Sube tu archivo de audio (MP3 / WAV)", type=["mp3", "wav"])
 
 if uploaded_file is not None:
     st.audio(uploaded_file)
     
-    with st.spinner("Analizando espectro de audio y picos de ganancia..."):
+    with st.spinner("Analizando espectro de audio, picos de ganancia y ráfagas transitorias..."):
         # Cargar audio
         y, sr = librosa.load(uploaded_file, sr=None)
         
@@ -57,7 +57,16 @@ if uploaded_file is not None:
         max_amplitude = np.max(np.abs(y))
         peak_db = 20 * np.log10(max_amplitude) if max_amplitude > 0 else -100.0
         
-        # 2. Análisis Espectral
+        # 2. Análisis Transitorio / RMS Dinámico (Detección de ráfagas ruidosas)
+        frame_length = int(sr * 0.05) # Bloques de 50ms
+        hop_length = int(sr * 0.025)
+        rms_frames = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
+        max_rms_db = 20 * np.log10(np.max(rms_frames)) if np.max(rms_frames) > 0 else -100.0
+        
+        # Dynamic Range / Crest Factor Proxy
+        crest_factor = peak_db - max_rms_db
+
+        # 3. Análisis Espectral
         n_fft = 2048
         S = np.abs(librosa.stft(y, n_fft=n_fft))
         S_norm = S / (np.max(S) + 1e-6)
@@ -65,7 +74,6 @@ if uploaded_file is not None:
         freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
         mean_spectrum_db = 20 * np.log10(np.mean(S_norm, axis=1) + 1e-6)
         
-        # Medición por bandas
         sub_bass_mask = (freqs >= 20) & (freqs <= 60)
         mids_mask = (freqs >= 500) & (freqs <= 2000)
         highs_mask = (freqs >= 10000) & (freqs <= 16000)
@@ -74,33 +82,30 @@ if uploaded_file is not None:
         mids_val = np.mean(mean_spectrum_db[mids_mask]) if np.any(mids_mask) else -100
         highs_val = np.mean(mean_spectrum_db[highs_mask]) if np.any(highs_mask) else -100
 
-        # Dominancia de graves
         bass_dominance = sub_bass_val - mids_val
 
-        # --- REGLAS DE EVALUACIÓN ---
+        # --- REGLAS DE EVALUACIÓN AJUSTADAS PARA DISRUPTIVE AUDIO ---
         is_no_apto = False
         is_riesgo = False
 
-        if peak_db > 8.9 or bass_dominance > 28.0:
+        # Si el RMS en ráfagas cortas supera -1.5 dBFS, Roblox suele tumbarlo por Disruptive Audio
+        if peak_db > 8.9 or bass_dominance > 28.0 or max_rms_db > -1.5:
             is_no_apto = True
-        elif (0.0 <= peak_db <= 8.9) or (22.0 < bass_dominance <= 28.0) or (highs_val > -15.0):
+        elif (0.0 <= peak_db <= 8.9) or (22.0 < bass_dominance <= 28.0) or (highs_val > -15.0) or (max_rms_db > -4.0):
             is_riesgo = True
 
-        # --- RESULTADO VISUAL Y NUEVO AUDIO ---
+        # --- RESULTADO VISUAL Y AUDIO ---
         st.subheader("📊 Resultado del Diagnóstico")
         
         if is_no_apto:
-            # Sonido de error/rechazado (Buzzer/Negative UI)
             sound_url = "https://cdn.pixabay.com/download/audio/2021/08/04/audio_c6ccf3232f.mp3?filename=negative_beeps-6008.mp3"
-            st.error("❌ **ESTADO: NO APTO** — Este archivo excede los parámetros extremos y corre riesgo de ser rechazado por *Disruptive Audio*.")
+            st.error("❌ **ESTADO: NO APTO (Disruptive Audio)** — El archivo contiene picos o ráfagas de potencia (RMS) que activan la moderación automática de Roblox.")
         elif is_riesgo:
-            # Sonido de advertencia (Soft Alert)
             sound_url = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=system-notification-129219.mp3"
-            st.warning("⚠️ **ESTADO: PUEDE SER NO APTO** — El audio tiene niveles muy altos de volumen o graves. Podría pasar o ser marcado según el bot.")
+            st.warning("⚠️ **ESTADO: PUEDE SER NO APTO** — Picos de volumen alto detectados en fragmentos cortos. Se sugiere pasar un limitador rígido en Audacity.")
         else:
-            # Sonido de éxito (Chime UI / Success)
             sound_url = "https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=success-1-6297.mp3"
-            st.success("✅ **ESTADO: APTO** — El archivo cumple con los márgenes aceptados por Roblox.")
+            st.success("✅ **ESTADO: APTO** — Niveles de volumen y ráfagas transitorias dentro del rango seguro.")
 
         components.html(f"""
             <audio autoplay style="display:none;">
@@ -112,25 +117,25 @@ if uploaded_file is not None:
         st.write("### 🔍 Parámetros Técnicos y Recomendaciones")
         col1, col2, col3 = st.columns(3)
 
-        # 1. PICO MÁXIMO
+        # 1. RMS RÁFAGA MÁXIMA
         with col1:
-            if peak_db > 8.9:
-                badge = '<span class="status-badge badge-danger">Saturación Crítica</span>'
-                rec = f"**Ajuste:** Reduce **{peak_db - 8.9:.1f} dB** en Audacity."
-            elif peak_db >= 0.0:
-                badge = '<span class="status-badge badge-warning">Zona Límite</span>'
-                rec = "**Recomendación:** En zona permitida, pero se sugiere bajar a 0 dB."
+            if max_rms_db > -1.5:
+                badge = '<span class="status-badge badge-danger">Ráfaga Peligrosa</span>'
+                rec = "**Ajuste:** Aplica *Limitador Duro* a -3 dB en Audacity."
+            elif max_rms_db > -4.0:
+                badge = '<span class="status-badge badge-warning">Ráfaga Alta</span>'
+                rec = "**Recomendación:** Reduce ganancia general -2 dB."
             else:
                 badge = '<span class="status-badge badge-success">Seguro</span>'
-                rec = "**Apto:** Sin riesgo de clipeo."
+                rec = f"**Pico dBFS:** {peak_db:.2f} dB | Sin riesgo."
 
             st.markdown(f"""
             <div class="metric-card">
                 {badge}
-                <h4>Pico Máximo</h4>
-                <h2 style="color:#58a6ff;">{peak_db:.2f} <small style="font-size:14px;">dBFS</small></h2>
+                <h4>Potencia Ráfaga (RMS)</h4>
+                <h2 style="color:#58a6ff;">{max_rms_db:.2f} <small style="font-size:14px;">dBFS</small></h2>
                 <hr style="border-color:#30363d; margin: 10px 0;">
-                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &lt; 8.9 dB</p>
+                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &lt; -4.0 dBFS</p>
                 <p style="font-size:0.85rem;">{rec}</p>
             </div>
             """, unsafe_allow_html=True)
@@ -163,7 +168,7 @@ if uploaded_file is not None:
         with col3:
             if highs_val > -15.0:
                 badge = '<span class="status-badge badge-warning">Agudos Estridentes</span>'
-                rec = "**Ajuste:** Reduce frecuencias ultrasónicas."
+                rec = "**Ajuste:** Aplica filtro paso bajo a 16 kHz."
             else:
                 badge = '<span class="status-badge badge-success">Normal / Filtrado</span>'
                 rec = "**Apto:** Nivel de agudos sin riesgo."
