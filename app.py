@@ -6,16 +6,13 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Roblox Audio Moderation Checker Pro", page_icon="🎵", layout="wide")
 
-# --- ESTILOS CSS CUSTOM (DASHBOARD MODERNO) ---
+# --- ESTILOS CSS CUSTOM ---
 st.markdown("""
     <style>
-    /* Fondo general y fuentes */
     .stApp {
         background-color: #0d1117;
         color: #c9d1d9;
     }
-    
-    /* Tarjetas de Métricas */
     .metric-card {
         background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
         border: 1px solid #30363d;
@@ -29,8 +26,6 @@ st.markdown("""
         transform: translateY(-3px);
         border-color: #58a6ff;
     }
-    
-    /* Indicadores de Estado */
     .status-badge {
         font-size: 0.85rem;
         font-weight: 700;
@@ -43,11 +38,6 @@ st.markdown("""
     .badge-success { background-color: rgba(46, 160, 67, 0.2); color: #3fb950; border: 1px solid #2ea643; }
     .badge-warning { background-color: rgba(210, 153, 34, 0.2); color: #d29922; border: 1px solid #bb8009; }
     .badge-danger { background-color: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid #f85149; }
-
-    /* Estilo de la gráfica */
-    .stPlotlyChart, div.ElementContainer {
-        border-radius: 10px;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,11 +53,11 @@ if uploaded_file is not None:
         # Cargar audio
         y, sr = librosa.load(uploaded_file, sr=None)
         
-        # 1. Pico Máximo (dBFS)
+        # 1. Pico Máximo (dBFS real)
         max_amplitude = np.max(np.abs(y))
         peak_db = 20 * np.log10(max_amplitude) if max_amplitude > 0 else -100.0
         
-        # 2. Análisis Espectral (STFT Normalizada)
+        # 2. Análisis Espectral
         n_fft = 2048
         S = np.abs(librosa.stft(y, n_fft=n_fft))
         S_norm = S / (np.max(S) + 1e-6)
@@ -75,59 +65,59 @@ if uploaded_file is not None:
         freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
         mean_spectrum_db = 20 * np.log10(np.mean(S_norm, axis=1) + 1e-6)
         
-        # Medición por bandas de frecuencia
+        # Medición por bandas
         sub_bass_mask = (freqs >= 20) & (freqs <= 60)
         mids_mask = (freqs >= 500) & (freqs <= 2000)
-        highs_mask = freqs >= 10000
+        highs_mask = (freqs >= 10000) & (freqs <= 16000) # Evaluamos solo el rango audible real
 
         sub_bass_val = np.mean(mean_spectrum_db[sub_bass_mask]) if np.any(sub_bass_mask) else -100
         mids_val = np.mean(mean_spectrum_db[mids_mask]) if np.any(mids_mask) else -100
         highs_val = np.mean(mean_spectrum_db[highs_mask]) if np.any(highs_mask) else -100
 
-        # Dominancia de Subgraves vs Medios
+        # Dominancia de graves
         bass_dominance = sub_bass_val - mids_val
 
-        # --- REGLAS DE EVALUACIÓN ---
+        # --- REGLAS DE EVALUACIÓN REALISTAS ---
         is_no_apto = False
         is_riesgo = False
 
-        if peak_db > 8.9 or bass_dominance > 14.0:
+        # Solo la saturación extrema (> 8.9 dB) o subgraves ultra destructivos (> 28 dB) causan baneo seguro
+        if peak_db > 8.9 or bass_dominance > 28.0:
             is_no_apto = True
-        elif (0.0 <= peak_db <= 8.9) or (9.5 < bass_dominance <= 14.0) or (highs_val < -65.0):
+        elif (0.0 <= peak_db <= 8.9) or (22.0 < bass_dominance <= 28.0) or (highs_val > -15.0):
             is_riesgo = True
 
-        # --- SONIDOS Y ALERTAS VISUALES ---
+        # --- RESULTADO VISUAL Y AUDIO ---
         st.subheader("📊 Resultado del Diagnóstico")
         
         if is_no_apto:
-            sound_url = "https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3" # Error sound
-            st.error("❌ **ESTADO: NO APTO** — Este archivo excede los parámetros seguros de Roblox y probablemente será rechazado por *Disruptive Audio* o saturación.")
+            sound_url = "https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3"
+            st.error("❌ **ESTADO: NO APTO** — Este archivo excede los parámetros extremos y corre riesgo de ser rechazado por *Disruptive Audio*.")
         elif is_riesgo:
-            sound_url = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" # Warning sound
-            st.warning("⚠️ **ESTADO: PUEDE SER NO APTO** — El audio está en zona límite. Te sugerimos realizar los ajustes indicados antes de subirlo.")
+            sound_url = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+            st.warning("⚠️ **ESTADO: PUEDE SER NO APTO** — El audio tiene niveles muy altos de volumen o graves. Podría pasar o ser marcado según el bot.")
         else:
-            sound_url = "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" # Success sound
-            st.success("✅ **ESTADO: APTO** — El archivo está correctamente balanceado y listo para subirse a Roblox.")
+            sound_url = "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"
+            st.success("✅ **ESTADO: APTO** — El archivo cumple con los márgenes aceptados por Roblox.")
 
-        # Reproducir efecto de sonido ambiental en la Web App
         components.html(f"""
             <audio autoplay style="display:none;">
                 <source src="{sound_url}" type="audio/mpeg">
             </audio>
         """, height=0)
 
-        # --- TARJETAS DE MÉTRICAS DETALLADAS ---
+        # --- MÉTRICAS ---
         st.write("### 🔍 Parámetros Técnicos y Recomendaciones")
         col1, col2, col3 = st.columns(3)
 
-        # 1. TARJETA PICO MÁXIMO
+        # 1. PICO MÁXIMO
         with col1:
             if peak_db > 8.9:
                 badge = '<span class="status-badge badge-danger">Saturación Crítica</span>'
-                rec = f"**Ajuste:** Reduce **{-peak_db:.1f} dB** en Audacity."
+                rec = f"**Ajuste:** Reduce **{peak_db - 8.9:.1f} dB** en Audacity."
             elif peak_db >= 0.0:
                 badge = '<span class="status-badge badge-warning">Zona Límite</span>'
-                rec = f"**Recomendación:** Recomendado bajar a **-0.5 dB**."
+                rec = "**Recomendación:** En zona permitida, pero se sugiere bajar a 0 dB."
             else:
                 badge = '<span class="status-badge badge-success">Seguro</span>'
                 rec = "**Apto:** Sin riesgo de clipeo."
@@ -138,24 +128,23 @@ if uploaded_file is not None:
                 <h4>Pico Máximo</h4>
                 <h2 style="color:#58a6ff;">{peak_db:.2f} <small style="font-size:14px;">dBFS</small></h2>
                 <hr style="border-color:#30363d; margin: 10px 0;">
-                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &lt; 0.0 dB (Max 8.9 dB)</p>
+                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &lt; 8.9 dB</p>
                 <p style="font-size:0.85rem;">{rec}</p>
             </div>
             """, unsafe_allow_html=True)
 
-        # 2. TARJETA SUBGRAVES
+        # 2. SUBGRAVES
         with col2:
-            if bass_dominance > 14.0:
+            if bass_dominance > 28.0:
                 badge = '<span class="status-badge badge-danger">Graves Excesivos</span>'
-                diff = bass_dominance - 9.5
-                rec = f"**Ajuste:** Aplica *High-Pass Filter* a 60Hz o baja graves **-{diff:.1f} dB**."
-            elif bass_dominance > 9.5:
-                badge = '<span class="status-badge badge-warning">Graves Elevados</span>'
-                diff = bass_dominance - 9.5
-                rec = f"**Sugerencia:** Reduce graves **-{diff:.1f} dB** para mayor seguridad."
+                diff = bass_dominance - 22.0
+                rec = f"**Ajuste:** Reduce subgraves **-{diff:.1f} dB**."
+            elif bass_dominance > 22.0:
+                badge = '<span class="status-badge badge-warning">Graves Pesados</span>'
+                rec = "**Nota:** Rango pesado pero generalmente aceptado."
             else:
                 badge = '<span class="status-badge badge-success">Equilibrado</span>'
-                rec = "**Apto:** Balance perfecto con medios."
+                rec = "**Apto:** Balance correcto de graves."
 
             st.markdown(f"""
             <div class="metric-card">
@@ -163,30 +152,27 @@ if uploaded_file is not None:
                 <h4>Dominancia Subgraves</h4>
                 <h2 style="color:#a5d6ff;">+{bass_dominance:.1f} <small style="font-size:14px;">dB vs Medios</small></h2>
                 <hr style="border-color:#30363d; margin: 10px 0;">
-                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &le; 9.5 dB (Max 14.0 dB)</p>
+                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &le; 28.0 dB</p>
                 <p style="font-size:0.85rem;">{rec}</p>
             </div>
             """, unsafe_allow_html=True)
 
-        # 3. TARJETA AGUDOS
+        # 3. AGUDOS
         with col3:
-            if highs_val < -65.0:
-                badge = '<span class="status-badge badge-warning">Audio Ahogado</span>'
-                rec = "**Ajuste:** Faltan agudos en la mezcla (>10 kHz)."
-            elif highs_val > -20.0:
-                badge = '<span class="status-badge badge-warning">Agudos Muy Altos</span>'
-                rec = "**Ajuste:** Reduce altas frecuencias para evitar estridencia."
+            if highs_val > -15.0:
+                badge = '<span class="status-badge badge-warning">Agudos Estridentes</span>'
+                rec = "**Ajuste:** Reduce frecuencias ultrasónicas."
             else:
-                badge = '<span class="status-badge badge-success">Equilibrado</span>'
-                rec = "**Apto:** Rango de agudos limpio."
+                badge = '<span class="status-badge badge-success">Normal / Filtrado</span>'
+                rec = "**Apto:** Nivel de agudos sin riesgo."
 
             st.markdown(f"""
             <div class="metric-card">
                 {badge}
-                <h4>Agudos (&gt;10 kHz)</h4>
+                <h4>Agudos (10k-16k Hz)</h4>
                 <h2 style="color:#d2a8ff;">{highs_val:.1f} <small style="font-size:14px;">dB Relativo</small></h2>
                 <hr style="border-color:#30363d; margin: 10px 0;">
-                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> -65.0 dB a -20.0 dB</p>
+                <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &lt; -15.0 dB</p>
                 <p style="font-size:0.85rem;">{rec}</p>
             </div>
             """, unsafe_allow_html=True)
@@ -194,7 +180,6 @@ if uploaded_file is not None:
         # --- GRÁFICA DE ESPECTRO ---
         st.write("### 📈 Espectro de Frecuencia Normalizado")
         
-        # Tema Oscuro para Matplotlib
         plt.style.use('dark_background')
         fig, ax = plt.subplots(figsize=(10, 3.8))
         fig.patch.set_facecolor('#161b22')
@@ -205,7 +190,6 @@ if uploaded_file is not None:
         ax.set_xlim(20, sr // 2)
         ax.set_ylim(-90, 5)
         
-        # Zonas destacadas
         ax.axvspan(20, 60, color='#f85149', alpha=0.18, label='Zona Subgraves (<60Hz)')
         ax.axvspan(500, 2000, color='#3fb950', alpha=0.10, label='Zona Medios (Referencia)')
         
