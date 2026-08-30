@@ -8,7 +8,7 @@ from scipy.signal import resample_poly
 from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Roblox Audio Moderation Checker Pro", page_icon="🎵", layout="wide")
+st.set_page_config(page_title="Roblox Audio Moderation", page_icon="🎵", layout="wide")
 
 # ============================== FUNCIONES DE AUDIO ==============================
 
