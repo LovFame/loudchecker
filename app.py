@@ -4,11 +4,57 @@ import numpy as np
 import librosa
 import pyloudnorm as pyln
 import soundfile as sf
+import lameenc
+import streamlit.components.v1 as components
 from scipy.signal import resample_poly
 from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Roblox Audio Moderation Checker Pro", page_icon="🎵", layout="wide")
+
+
+def play_chime(kind="success"):
+    """Reproduce un sonido corto generado en el navegador (Web Audio API),
+    sin depender de archivos externos. kind: success | warning | danger."""
+    presets = {
+        "success": [(523.25, 0.0), (659.25, 0.09), (783.99, 0.18)],   # arpegio ascendente (do-mi-sol)
+        "warning": [(440.0, 0.0), (440.0, 0.12)],                      # dos notas iguales, tipo aviso
+        "danger":  [(330.0, 0.0), (220.0, 0.12)],                      # descendente, tipo alerta
+    }
+    notes = presets.get(kind, presets["success"])
+    js_notes = ",".join([f"[{f},{t}]" for f, t in notes])
+    components.html(f"""
+        <script>
+        try {{
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const notes = [{js_notes}];
+            notes.forEach(([freq, delay]) => {{
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "sine";
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + delay + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + 0.28);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(ctx.currentTime + delay);
+                osc.stop(ctx.currentTime + delay + 0.3);
+            }});
+        }} catch (e) {{}}
+        </script>
+    """, height=0)
+
+
+def encode_mp3(y, sr, bitrate=192):
+    pcm16 = (np.clip(y, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+    enc = lameenc.Encoder()
+    enc.set_bit_rate(bitrate)
+    enc.set_in_sample_rate(sr)
+    enc.set_channels(1)
+    enc.set_quality(2)
+    data = enc.encode(pcm16)
+    data += enc.flush()
+    return data
 
 # ============================== FUNCIONES DE AUDIO ==============================
 
@@ -107,24 +153,79 @@ def full_transform(y, sr, meter, target_lufs, target_tp_db, bass_dominance_limit
 # ============================== ESTILOS ==============================
 st.markdown("""
     <style>
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulseDanger {
+        0%   { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.45); }
+        70%  { box-shadow: 0 0 0 10px rgba(248, 81, 73, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0); }
+    }
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    @keyframes shimmer {
+        0% { background-position: -200px 0; }
+        100% { background-position: 200px 0; }
+    }
+
     .stApp { background-color: #0d1117; color: #c9d1d9; }
+
+    h1 {
+        background: linear-gradient(90deg, #58a6ff, #bc8cff, #58a6ff);
+        background-size: 200% auto;
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: gradientShift 6s ease infinite;
+    }
+
     .metric-card {
         background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
-        border: 1px solid #30363d; border-radius: 12px; padding: 18px; margin-bottom: 15px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); transition: transform 0.2s ease, border-color 0.2s ease;
+        border: 1px solid #30363d; border-radius: 14px; padding: 18px; margin-bottom: 15px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        animation: fadeInUp 0.5s ease both;
     }
-    .metric-card:hover { transform: translateY(-3px); border-color: #58a6ff; }
+    .metric-card:hover { transform: translateY(-4px) scale(1.01); border-color: #58a6ff; box-shadow: 0 8px 24px rgba(88,166,255,0.15); }
+    .metric-card.danger-pulse { animation: fadeInUp 0.5s ease both, pulseDanger 2s infinite; }
+
     .status-badge {
         font-size: 0.85rem; font-weight: 700; padding: 4px 10px; border-radius: 20px;
         display: inline-block; margin-bottom: 8px; text-transform: uppercase;
+        transition: all 0.2s ease;
     }
     .badge-success { background-color: rgba(46, 160, 67, 0.2); color: #3fb950; border: 1px solid #2ea643; }
     .badge-warning { background-color: rgba(210, 153, 34, 0.2); color: #d29922; border: 1px solid #bb8009; }
     .badge-danger { background-color: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid #f85149; }
+
     .disclaimer-box {
         background: rgba(88, 166, 255, 0.08); border: 1px solid #30363d; border-left: 4px solid #58a6ff;
-        border-radius: 8px; padding: 14px 18px; font-size: 0.88rem; color: #8b949e; margin-bottom: 20px;
+        border-radius: 10px; padding: 14px 18px; font-size: 0.88rem; color: #8b949e; margin-bottom: 20px;
+        animation: fadeInUp 0.6s ease both;
     }
+
+    .result-banner {
+        border-radius: 14px; padding: 20px 24px; margin-bottom: 16px;
+        animation: fadeInUp 0.5s ease both;
+        font-size: 1.05rem; font-weight: 600;
+    }
+    .result-ok { background: linear-gradient(135deg, rgba(46,160,67,0.18), rgba(46,160,67,0.05)); border: 1px solid #2ea643; }
+    .result-warn { background: linear-gradient(135deg, rgba(210,153,34,0.18), rgba(210,153,34,0.05)); border: 1px solid #bb8009; }
+    .result-danger { background: linear-gradient(135deg, rgba(248,81,73,0.18), rgba(248,81,73,0.05)); border: 1px solid #f85149; animation: fadeInUp 0.5s ease both, pulseDanger 2s infinite; }
+
+    .stButton > button {
+        border-radius: 10px; transition: transform 0.15s ease, box-shadow 0.15s ease;
+        border: 1px solid #30363d;
+    }
+    .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(88,166,255,0.25); border-color: #58a6ff; }
+
+    div[data-testid="stDownloadButton"] > button {
+        border-radius: 10px; transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    div[data-testid="stDownloadButton"] > button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(63,185,80,0.25); }
     </style>
 """, unsafe_allow_html=True)
 
