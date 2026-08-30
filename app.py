@@ -8,9 +8,9 @@ from scipy.signal import resample_poly
 from scipy.ndimage import uniform_filter1d
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Roblox Audio Moderation", page_icon="🎵", layout="wide")
+st.set_page_config(page_title="Roblox Audio Safety Analyzer", page_icon="🎵", layout="wide")
 
-# ============================== FUNCIONES DE AUDIO ==============================
+# ============================== AUDIO FUNCTIONS ==============================
 
 def measure_true_peak_db(y, oversample=4):
     """True Peak (dBTP) por sobremuestreo 4x, aproximación a ITU-R BS.1770."""
@@ -104,39 +104,135 @@ def full_transform(y, sr, meter, target_lufs, target_tp_db, bass_dominance_limit
     return y_final, bass_reduction_db, ultrasonic_reduction_db
 
 
-# ============================== ESTILOS ==============================
+# ============================== MODERN STYLES ==============================
 st.markdown("""
     <style>
-    .stApp { background-color: #0d1117; color: #c9d1d9; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    .stApp {
+        background: radial-gradient(circle at top left, rgba(98, 103, 255, 0.2), transparent 30%),
+                    radial-gradient(circle at bottom right, rgba(0, 214, 170, 0.18), transparent 25%),
+                    #0b1020;
+        color: #e5ecff;
+        font-family: 'Inter', sans-serif;
+    }
+    .modern-shell {
+        position: relative;
+        overflow: hidden;
+        border-radius: 22px;
+        margin-bottom: 18px;
+        background: linear-gradient(135deg, rgba(19,23,38,0.9), rgba(17,19,33,0.9));
+        border: 1px solid rgba(140, 169, 255, 0.2);
+        box-shadow: 0 30px 50px rgba(0, 0, 0, 0.25);
+        padding: 24px 22px;
+    }
+    .aurora {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(90px);
+        opacity: 0.38;
+        animation: floatPulse 9s ease-in-out infinite alternate;
+    }
+    .aurora-one { width: 180px; height: 180px; background: #7c6cff; top: -40px; right: 8%; }
+    .aurora-two { width: 240px; height: 240px; background: #17c6c7; bottom: -90px; left: 6%; animation-delay: 2s; }
+    @keyframes floatPulse {
+        0% { transform: translateY(0px) scale(0.96); }
+        100% { transform: translateY(-18px) scale(1.08); }
+    }
+    .hero-card {
+        position: relative;
+        z-index: 1;
+    }
+    .hero-badge {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 7px 12px; border-radius: 999px;
+        background: rgba(124, 108, 255, 0.12); border: 1px solid rgba(124, 108, 255, 0.25);
+        color: #c2d0ff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    h1 {
+        margin: 16px 0 8px 0; font-size: clamp(2rem, 4vw, 3.1rem); line-height: 1.08;
+        font-weight: 800; letter-spacing: -0.04em; color: #f5f7ff;
+    }
+    .hero-subtitle {
+        max-width: 760px; color: #b5c3e5; font-size: 1rem; line-height: 1.6; margin: 0;
+    }
     .metric-card {
-        background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
-        border: 1px solid #30363d; border-radius: 12px; padding: 18px; margin-bottom: 15px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); transition: transform 0.2s ease, border-color 0.2s ease;
+        background: linear-gradient(135deg, rgba(24, 29, 43, 0.95), rgba(15, 19, 31, 0.95));
+        border: 1px solid rgba(140, 169, 255, 0.18); border-radius: 18px; padding: 18px; margin-bottom: 15px;
+        box-shadow: 0 12px 26px rgba(0,0,0,0.18); transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        position: relative; overflow: hidden;
     }
-    .metric-card:hover { transform: translateY(-3px); border-color: #58a6ff; }
+    .metric-card::before {
+        content: ""; position: absolute; inset: 0 auto auto 0; width: 100%; height: 2px; background: linear-gradient(90deg, #6ea8fe, transparent);
+    }
+    .metric-card:hover { transform: translateY(-3px); border-color: rgba(110,168,254,0.7); box-shadow: 0 16px 36px rgba(89, 117, 255, 0.18); }
     .status-badge {
-        font-size: 0.85rem; font-weight: 700; padding: 4px 10px; border-radius: 20px;
-        display: inline-block; margin-bottom: 8px; text-transform: uppercase;
+        font-size: 0.75rem; font-weight: 700; padding: 6px 10px; border-radius: 999px;
+        display: inline-block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em;
     }
-    .badge-success { background-color: rgba(46, 160, 67, 0.2); color: #3fb950; border: 1px solid #2ea643; }
-    .badge-warning { background-color: rgba(210, 153, 34, 0.2); color: #d29922; border: 1px solid #bb8009; }
-    .badge-danger { background-color: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid #f85149; }
+    .badge-success { background-color: rgba(46, 160, 67, 0.18); color: #6ee7a8; border: 1px solid rgba(46, 160, 67, 0.35); }
+    .badge-warning { background-color: rgba(210, 153, 34, 0.18); color: #ffca6d; border: 1px solid rgba(210, 153, 34, 0.35); }
+    .badge-danger { background-color: rgba(248, 81, 73, 0.18); color: #ff8b8b; border: 1px solid rgba(248, 81, 73, 0.35); }
     .disclaimer-box {
-        background: rgba(88, 166, 255, 0.08); border: 1px solid #30363d; border-left: 4px solid #58a6ff;
-        border-radius: 8px; padding: 14px 18px; font-size: 0.88rem; color: #8b949e; margin-bottom: 20px;
+        background: rgba(110, 168, 254, 0.07); border: 1px solid rgba(110, 168, 254, 0.18);
+        border-left: 4px solid #6ea8fe; border-radius: 16px; padding: 14px 18px; font-size: 0.9rem;
+        color: #cfdaf7; margin-bottom: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
     }
+    .stAlert { border-radius: 16px; }
+    div[data-testid="stSidebar"] { background: rgba(12,15,28,0.9); }
+    [data-testid="stFileUploaderDropzone"] { border-radius: 18px; border: 1px dashed rgba(128,155,255,0.5) !important; }
+    .stDownloadButton > button, .stButton > button {
+        border-radius: 12px; font-weight: 700; transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .stDownloadButton > button:hover, .stButton > button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(107, 124, 255, 0.25); }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎵 Roblox Audio Moderation Checker Pro")
-st.caption("Analiza y corrige LUFS, True Peak, subgraves y ultrasónicos para reducir el riesgo de rechazo por *Disruptive Audio*.")
+st.markdown("""
+<div class="modern-shell">
+  <div class="aurora aurora-one"></div>
+  <div class="aurora aurora-two"></div>
+  <div class="hero-card">
+    <div class="hero-badge">🎵 Audio safety studio</div>
+    <h1>Roblox Audio Safety Analyzer</h1>
+    <p class="hero-subtitle">Diagnose loudness, true peak, sub-bass excess, and ultrasonic artifacts before uploading to Roblox, with a cleaner workflow and a more modern experience.</p>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.components.v1.html("""
+<script>
+  function playTone({ frequency = 440, duration = 0.14, type = 'sine', gain = 0.04 }) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = frequency;
+      gainNode.gain.value = gain;
+      osc.connect(gainNode).connect(ctx.destination);
+      osc.start();
+      setTimeout(() => { osc.stop(); ctx.close(); }, duration * 1000);
+    } catch (e) {}
+  }
+  function playStatus(mode = 'ready') {
+    if (mode === 'success') {
+      playTone({ frequency: 660, duration: 0.12, type: 'triangle', gain: 0.05 });
+      setTimeout(() => playTone({ frequency: 880, duration: 0.16, type: 'triangle', gain: 0.05 }), 120);
+    } else {
+      playTone({ frequency: 420, duration: 0.12, type: 'sine', gain: 0.04 });
+    }
+  }
+  window.addEventListener('load', function () {
+    setTimeout(() => playStatus('ready'), 300);
+  });
+</script>
+""", height=0)
 
 st.markdown("""
 <div class="disclaimer-box">
-⚠️ <b>Roblox no publica los umbrales exactos de su sistema de moderación</b>, por lo que ninguna herramienta externa
-—esta incluida— puede garantizar un resultado 100% preciso. Esta app usa estándares reales de la industria
-(ITU-R BS.1770 / EBU R128) y te deja fijar tus propios objetivos abajo. Además, Roblox también rechaza audio por
-motivos que ningún procesamiento de volumen puede corregir: copyright, voces/gritos, o contenido explícito.
+⚠️ <b>Roblox does not publish the exact thresholds of its moderation system</b>, so no external tool — including this one — can guarantee a 100% accurate result. This app uses real industry standards (ITU-R BS.1770 / EBU R128) and lets you set your own objectives below. Roblox can also reject audio for reasons no loudness tool can fix: copyright, voice/crying, or explicit content.
 </div>
 """, unsafe_allow_html=True)
 
@@ -151,38 +247,38 @@ DEFAULTS = {
 }
 
 with st.sidebar:
-    st.header("🎚️ Objetivos de audio")
-    strict_mode = st.toggle("🔒 Modo estricto (valores recomendados)", value=True,
-                             help="Bloquea los umbrales en los valores recomendados por estándares de la industria, para evitar que se aflojen sin querer y la app diga 'apto' cuando no debería.")
+    st.header("🎚️ Audio targets")
+    strict_mode = st.toggle("🔒 Strict mode (recommended values)", value=True,
+                             help="Locks the threshold values to the recommended industry-safe defaults so you do not accidentally relax the analysis and get a false green light.")
 
     if not strict_mode:
-        st.warning("⚠️ Estás en modo personalizado. Un resultado 'apto' con umbrales aflojados **no significa que Roblox lo vaya a aceptar** — solo cambia lo que esta app te muestra, no el criterio real de Roblox.")
+        st.warning("⚠️ You are in custom mode. A result marked as 'safe' with looser thresholds does not mean Roblox will accept it — it only changes what this app displays, not Roblox's actual moderation rules.")
 
-    st.caption("Estos valores se usan para: (1) decidir si tu audio está en riesgo, y (2) como META cuando le des a 'Generar versión corregida'.")
+    st.caption("These values are used to: (1) determine whether your audio is at risk, and (2) set the target for the 'Generate corrected version' step.")
 
     lufs_target = st.slider(
-        "LUFS integrado objetivo", -30.0, -6.0, DEFAULTS["lufs_target"], 0.5, disabled=strict_mode,
-        help="Mide el volumen PROMEDIO percibido de todo el audio (no solo el pico). -14 LUFS es la referencia de Spotify/YouTube; -23 LUFS es el estándar de TV (EBU R128), mucho más bajo. Al transformar, la app sube o baja la ganancia de TODO el audio para que el promedio caiga en este número. Si lo pones muy alto (ej. -6), el audio quedará muy fuerte y es más probable que choque con el límite de True Peak de abajo."
+        "Integrated LUFS target", -30.0, -6.0, DEFAULTS["lufs_target"], 0.5, disabled=strict_mode,
+        help="Measures the perceived average loudness over the whole clip, not just the peak. -14 LUFS is the Spotify/YouTube reference; -23 LUFS is the stricter EBU R128 broadcast standard. When transforming, the app raises or lowers gain across the full track until it lands near this value. If you set it too high (for example -6), the track will be louder and more likely to hit the True Peak ceiling below."
     )
     tp_limit = st.slider(
-        "True Peak máximo (dBTP)", -6.0, 0.0, DEFAULTS["tp_limit"], 0.1, disabled=strict_mode,
-        help="El pico REAL de la onda, incluyendo los picos 'entre muestras' que aparecen al reconstruir el audio en un DAC o al convertir a MP3 (por eso es distinto del pico normal que ves en un editor). Si el True Peak es muy alto (cercano a 0 dBTP), el audio puede distorsionarse al reproducirse o al re-codificarse. Al transformar, si subir el volumen para llegar al LUFS objetivo haría que el True Peak superara este límite, la app reduce la ganancia lo necesario para respetarlo — por eso a veces el LUFS final no llega exacto al objetivo."
+        "Maximum True Peak (dBTP)", -6.0, 0.0, DEFAULTS["tp_limit"], 0.1, disabled=strict_mode,
+        help="The real peak of the waveform, including inter-sample peaks that appear when audio is reconstructed on a DAC or re-encoded. If True Peak is too high (close to 0 dBTP), the audio can distort on playback or re-encoding. When applying a correction, if boosting volume to hit the LUFS target would violate this limit, the app reduces gain as needed to respect it. That is why the final LUFS may not land exactly on the target."
     )
     momentary_limit = st.slider(
-        "Loudness momentáneo máx. (LUFS, ráfagas)", -20.0, -3.0, DEFAULTS["momentary_limit"], 0.5, disabled=strict_mode,
-        help="Loudness medido en ventanas cortas (400ms) en vez de todo el audio. Detecta RÁFAGAS o impactos repentinos (un grito, un golpe fuerte) que pueden disparar 'Disruptive Audio' aunque el promedio general del audio sea bajo. Este valor solo se usa para el DIAGNÓSTICO (marcar riesgo); la corrección automática no aplica un limitador de ráfagas independiente, solo el techo de True Peak general."
+        "Maximum momentary loudness (LUFS, bursts)", -20.0, -3.0, DEFAULTS["momentary_limit"], 0.5, disabled=strict_mode,
+        help="Loudness measured in short 400 ms windows instead of the full file. This catches sudden bursts like a shout or impact that may trigger 'Disruptive Audio' even when the overall average is moderate. This value is used only for diagnosis; the auto-correction does not apply a separate burst limiter, only the general True Peak ceiling."
     )
     bass_dominance_limit = st.slider(
-        "Dominancia de subgraves máx. (dB vs medios)", 10.0, 35.0, DEFAULTS["bass_dominance_limit"], 1.0, disabled=strict_mode,
-        help="Compara qué tan fuerte está la banda de 20-60 Hz (subgraves) frente a la banda de 500-2000 Hz (medios, donde está la mayoría de la voz e instrumentos). Un valor alto significa graves exagerados tipo 'bocina de auto'. Al transformar, si tu audio excede este límite, la app aplica un EQ que atenúa específicamente la banda de 20-60 Hz hasta bajar la dominancia a este número — no toca el resto del espectro."
+        "Maximum bass dominance (dB vs mids)", 10.0, 35.0, DEFAULTS["bass_dominance_limit"], 1.0, disabled=strict_mode,
+        help="Compares how strong the 20-60 Hz sub-bass band is relative to the 500-2000 Hz midrange band, where most vocals and instruments live. A high value means exaggerated low-end like a car subwoofer. During transformation, if your file exceeds this limit, the app applies EQ to reduce the 20-60 Hz band until the dominance is under the selected value without changing the rest of the spectrum."
     )
     ultrasonic_limit = st.slider(
-        "Ruido ultrasónico máx. (dB, >17kHz)", -50.0, -10.0, DEFAULTS["ultrasonic_limit"], 1.0, disabled=strict_mode,
-        help="Energía por encima de 17kHz, normalmente inaudible para la mayoría de las personas pero que puede colarse como ruido de compresión o de un micrófono defectuoso. Al transformar, si tu audio excede este límite, la app aplica un filtro que atenúa específicamente las frecuencias por encima de 17kHz — es seguro quitarlo porque casi nadie lo escucha de todas formas."
+        "Maximum ultrasonic noise (dB, >17kHz)", -50.0, -10.0, DEFAULTS["ultrasonic_limit"], 1.0, disabled=strict_mode,
+        help="Energy above 17 kHz, often inaudible to most listeners but sometimes caused by compression artifacts or faulty microphone capture. If your file exceeds this limit, the app applies a filter that attenuates frequencies above 17 kHz — it is generally safe to remove because most people cannot hear it."
     )
     dynamic_range_min = st.slider(
-        "Rango dinámico mínimo (dB)", 1.0, 15.0, DEFAULTS["dynamic_range_min"], 0.5, disabled=strict_mode,
-        help="Diferencia entre el pico más alto y el volumen promedio. Un valor bajo significa que el audio está muy comprimido/'aplastado' (suena como un muro de ruido constante, sin variación). IMPORTANTE: esto solo se usa para DIAGNÓSTICO. Si tu audio original ya viene muy comprimido, esta app NO puede 'devolverle' la dinámica perdida — esa información ya no existe en la señal. La única solución real es partir de una versión menos comprimida del audio original."
+        "Minimum dynamic range (dB)", 1.0, 15.0, DEFAULTS["dynamic_range_min"], 0.5, disabled=strict_mode,
+        help="The difference between the loudest peak and the average level. A low value means the audio is heavily compressed or flattened, sounding like a constant wall of noise without variation. This is for DIAGNOSTIC use only. If the original is already heavily compressed, this app cannot recover the lost dynamic range; that information is no longer in the signal. The real fix is to start from a less compressed source."
     )
 
     if strict_mode:
@@ -193,12 +289,12 @@ with st.sidebar:
         ultrasonic_limit = DEFAULTS["ultrasonic_limit"]
         dynamic_range_min = DEFAULTS["dynamic_range_min"]
 
-uploaded_file = st.file_uploader("Sube tu archivo de audio (MP3 / WAV)", type=["mp3", "wav"])
+uploaded_file = st.file_uploader("Upload your audio file (MP3 / WAV)", type=["mp3", "wav"])
 
 if uploaded_file is not None:
     st.audio(uploaded_file)
 
-    with st.spinner("Ejecutando escaneo de loudness, true peak y espectro..."):
+    with st.spinner("Running loudness, true peak, and spectrum scan..."):
         y, sr = librosa.load(uploaded_file, sr=None, mono=True)
 
         meter = pyln.Meter(sr)
@@ -240,106 +336,106 @@ if uploaded_file is not None:
 
         if true_peak_db > tp_limit:
             is_no_apto = True
-            reasons.append(f"True Peak de {true_peak_db:.1f} dBTP supera el límite de {tp_limit:.1f} dBTP.")
+            reasons.append(f"True Peak of {true_peak_db:.1f} dBTP exceeds the limit of {tp_limit:.1f} dBTP.")
         if max_momentary > momentary_limit:
             is_no_apto = True
-            reasons.append(f"Ráfaga de loudness momentáneo de {max_momentary:.1f} LUFS (umbral: {momentary_limit:.1f} LUFS).")
+            reasons.append(f"Momentary loudness burst of {max_momentary:.1f} LUFS (threshold: {momentary_limit:.1f} LUFS).")
         if integrated_lufs > lufs_target:
             is_riesgo = True
-            reasons.append(f"Loudness integrado de {integrated_lufs:.1f} LUFS por encima del objetivo de {lufs_target:.1f} LUFS.")
+            reasons.append(f"Integrated loudness of {integrated_lufs:.1f} LUFS is above the target of {lufs_target:.1f} LUFS.")
         if bass_dominance > bass_dominance_limit:
             is_no_apto = True
-            reasons.append("Exceso destructivo de subgraves respecto a las frecuencias medias.")
+            reasons.append("Excessive sub-bass presence relative to the midrange frequencies.")
         if ultrasonic_val > ultrasonic_limit:
             is_riesgo = True
-            reasons.append("Ruido ultrasónico (>17kHz) detectado en la mezcla.")
+            reasons.append("Ultrasonic noise (>17kHz) detected in the mix.")
         if dynamic_range < dynamic_range_min:
             is_riesgo = True
-            reasons.append("Rango dinámico muy comprimido (sonido tipo 'muro de ruido' constante).")
+            reasons.append("Very compressed dynamic range (constant 'wall of noise' sound).")
 
-        st.subheader("📊 Resultado del Diagnóstico")
+        st.subheader("📊 Diagnostic result")
         if is_no_apto:
-            st.error("❌ **RIESGO ALTO — parámetros fuera de estándares de la industria**")
+            st.error("❌ **HIGH RISK — parameters fall outside industry-safe standards**")
         elif is_riesgo:
-            st.warning("⚠️ **RIESGO MODERADO — algunos parámetros al límite**")
+            st.warning("⚠️ **MODERATE RISK — some parameters are near the limit**")
         else:
-            st.success("✅ **DENTRO DE ESTÁNDARES — loudness, picos y espectro dentro de rangos seguros**")
-            st.caption("Esto significa que el audio cumple buenas prácticas de mastering (LUFS, True Peak, espectro). **No es una garantía de que Roblox lo vaya a aceptar** — su moderación también analiza el contenido del sonido (voces, gritos, distorsión perceptual) de una forma que esta app no puede replicar.")
+            st.success("✅ **WITHIN SAFE RANGE — loudness, peaks, and spectrum are inside healthy limits**")
+            st.caption("This means the audio follows solid mastering practices for LUFS, True Peak, and spectral balance. **It is not a guarantee that Roblox will accept it** — the moderation system also analyzes sound content such as voices, screams, and perceptual distortion in ways this app cannot fully replicate.")
 
         if reasons:
-            st.write("**Motivos detectados:**")
+            st.write("**Detected issues:**")
             for r in reasons:
                 st.markdown(f"- {r}")
 
-        with st.expander("📌 Causas de rechazo que esta herramienta NO puede detectar ni corregir"):
+        with st.expander("📌 Rejection causes this tool cannot detect or fix"):
             st.write("""
-            * **Derechos de autor (Content ID):** canciones, remixes o samples registrados se eliminan aunque el audio esté técnicamente limpio.
-            * **Voz, gritos o palabras malsonantes:** moderación de contenido hablado o cantado, gritos agudos o lenguaje explícito.
-            * **Contexto del sonido:** disparos, gritos de terror o sirenas pueden marcarse por su naturaleza aunque el volumen sea moderado.
+            * **Copyright / Content ID:** registered songs, remixes, or samples can be removed even when the audio is technically clean.
+            * **Voice, screams, or profanity:** moderation can flag spoken or sung content, harsh screams, or explicit language.
+            * **Context of the sound:** gunshots, horror screams, sirens, or similar effects may be flagged based on their nature even when volume is moderate.
             """)
 
-        st.write("### 🔍 Parámetros Técnicos")
+        st.write("### 🔍 Technical parameters")
         col1, col2, col3 = st.columns(3)
 
         with col1:
             if true_peak_db > tp_limit:
-                badge, rec = '<span class="status-badge badge-danger">True Peak excedido</span>', f"Baja la ganancia para dejar True Peak ≤ {tp_limit:.1f} dBTP."
+                badge, rec = '<span class="status-badge badge-danger">True Peak exceeded</span>', f"Reduce gain to keep True Peak at or below {tp_limit:.1f} dBTP."
             elif max_momentary > momentary_limit:
-                badge, rec = '<span class="status-badge badge-danger">Ráfaga detectada</span>', "Aplica un limitador para suavizar picos repentinos."
+                badge, rec = '<span class="status-badge badge-danger">Burst detected</span>', "Apply limiting to smooth sudden transient spikes."
             else:
-                badge, rec = '<span class="status-badge badge-success">Seguro</span>', f"Sample Peak: {sample_peak_db:.1f} dBFS"
+                badge, rec = '<span class="status-badge badge-success">Safe</span>', f"Sample Peak: {sample_peak_db:.1f} dBFS"
             st.markdown(f"""<div class="metric-card">{badge}<h4>True Peak</h4>
             <h2 style="color:#58a6ff;">{true_peak_db:.1f} <small style="font-size:14px;">dBTP</small></h2>
             <hr style="border-color:#30363d; margin:10px 0;">
-            <p style="font-size:0.85rem;"><b>Límite:</b> ≤ {tp_limit:.1f} dBTP</p>
+            <p style="font-size:0.85rem;"><b>Limit:</b> ≤ {tp_limit:.1f} dBTP</p>
             <p style="font-size:0.85rem;">{rec}</p></div>""", unsafe_allow_html=True)
 
         with col2:
             if integrated_lufs > lufs_target:
-                badge, rec = '<span class="status-badge badge-warning">Muy fuerte</span>', "Baja la ganancia general o aplica menos compresión."
+                badge, rec = '<span class="status-badge badge-warning">Too loud</span>', "Reduce the overall gain or use less aggressive compression."
             else:
-                badge, rec = '<span class="status-badge badge-success">Dentro de rango</span>', f"Momentáneo máx: {max_momentary:.1f} LUFS"
-            st.markdown(f"""<div class="metric-card">{badge}<h4>Loudness Integrado (LUFS)</h4>
+                badge, rec = '<span class="status-badge badge-success">In range</span>', f"Max momentary: {max_momentary:.1f} LUFS"
+            st.markdown(f"""<div class="metric-card">{badge}<h4>Integrated Loudness (LUFS)</h4>
             <h2 style="color:#a5d6ff;">{integrated_lufs:.1f} <small style="font-size:14px;">LUFS</small></h2>
             <hr style="border-color:#30363d; margin:10px 0;">
-            <p style="font-size:0.85rem;"><b>Objetivo:</b> ≤ {lufs_target:.1f} LUFS</p>
+            <p style="font-size:0.85rem;"><b>Target:</b> ≤ {lufs_target:.1f} LUFS</p>
             <p style="font-size:0.85rem;">{rec}</p></div>""", unsafe_allow_html=True)
 
         with col3:
             if dynamic_range < dynamic_range_min:
-                badge, rec = '<span class="status-badge badge-warning">Sin dinámica</span>', "No recuperable por procesamiento; requiere un original menos comprimido."
+                badge, rec = '<span class="status-badge badge-warning">Low dynamic range</span>', "Not recoverable with post-processing; requires a less compressed source."
             else:
-                badge, rec = '<span class="status-badge badge-success">Buena dinámica</span>', "El audio respira correctamente."
-            st.markdown(f"""<div class="metric-card">{badge}<h4>Rango Dinámico</h4>
+                badge, rec = '<span class="status-badge badge-success">Healthy dynamics</span>', "The audio breathes correctly."
+            st.markdown(f"""<div class="metric-card">{badge}<h4>Dynamic Range</h4>
             <h2 style="color:#d2a8ff;">{dynamic_range:.1f} <small style="font-size:14px;">dB</small></h2>
             <hr style="border-color:#30363d; margin:10px 0;">
-            <p style="font-size:0.85rem;"><b>Mínimo:</b> {dynamic_range_min:.1f} dB</p>
+            <p style="font-size:0.85rem;"><b>Minimum:</b> {dynamic_range_min:.1f} dB</p>
             <p style="font-size:0.85rem;">{rec}</p></div>""", unsafe_allow_html=True)
 
         col4, col5 = st.columns(2)
         with col4:
-            badge = '<span class="status-badge badge-danger">Excedido</span>' if bass_dominance > bass_dominance_limit else '<span class="status-badge badge-success">Balanceado</span>'
-            st.markdown(f"""<div class="metric-card">{badge}<h4>Dominancia de Subgraves</h4>
-            <h2 style="color:#f0883e;">+{bass_dominance:.1f} <small style="font-size:14px;">dB vs medios</small></h2>
+            badge = '<span class="status-badge badge-danger">Exceeded</span>' if bass_dominance > bass_dominance_limit else '<span class="status-badge badge-success">Balanced</span>'
+            st.markdown(f"""<div class="metric-card">{badge}<h4>Bass Dominance</h4>
+            <h2 style="color:#f0883e;">+{bass_dominance:.1f} <small style="font-size:14px;">dB vs mids</small></h2>
             <hr style="border-color:#30363d; margin:10px 0;">
-            <p style="font-size:0.85rem;"><b>Límite:</b> ≤ {bass_dominance_limit:.1f} dB</p></div>""", unsafe_allow_html=True)
+            <p style="font-size:0.85rem;"><b>Limit:</b> ≤ {bass_dominance_limit:.1f} dB</p></div>""", unsafe_allow_html=True)
         with col5:
-            badge = '<span class="status-badge badge-danger">Excedido</span>' if ultrasonic_val > ultrasonic_limit else '<span class="status-badge badge-success">Limpio</span>'
-            st.markdown(f"""<div class="metric-card">{badge}<h4>Ruido Ultrasónico</h4>
+            badge = '<span class="status-badge badge-danger">Exceeded</span>' if ultrasonic_val > ultrasonic_limit else '<span class="status-badge badge-success">Clean</span>'
+            st.markdown(f"""<div class="metric-card">{badge}<h4>Ultrasonic Noise</h4>
             <h2 style="color:#79c0ff;">{ultrasonic_val:.1f} <small style="font-size:14px;">dB</small></h2>
             <hr style="border-color:#30363d; margin:10px 0;">
-            <p style="font-size:0.85rem;"><b>Límite:</b> ≤ {ultrasonic_limit:.1f} dB</p></div>""", unsafe_allow_html=True)
+            <p style="font-size:0.85rem;"><b>Limit:</b> ≤ {ultrasonic_limit:.1f} dB</p></div>""", unsafe_allow_html=True)
 
-        # ============================== TRANSFORMACIÓN ==============================
-        st.write("### 🎛️ Generar versión corregida")
+        # ============================== TRANSFORMATION ==============================
+        st.write("### 🎛️ Generate corrected version")
         st.caption(
-            "Aplica, en este orden: 1) EQ que atenúa subgraves y/o ultrasónicos si exceden los límites de la barra "
-            "lateral, 2) ganancia para acercar el LUFS al objetivo, 3) un techo de True Peak que reduce la ganancia "
-            "si hiciera falta. El rango dinámico NO se corrige — si ya está muy comprimido, no hay forma de recuperarlo."
+            "Applies, in this order: 1) EQ that reduces sub-bass and/or ultrasonic energy when they exceed the sidebar limits, "
+            "2) gain adjustment to move the LUFS toward the target, 3) a True Peak ceiling that trims gain if needed. "
+            "Dynamic range is not corrected — if the file is already heavily compressed, there is no way to recover the lost variation."
         )
 
-        if st.button("🎚️ Generar versión corregida"):
-            with st.spinner("Aplicando EQ, ganancia y límite de True Peak..."):
+        if st.button("🎚️ Generate corrected version"):
+            with st.spinner("Applying EQ, gain, and True Peak ceiling..."):
                 y_final, bass_cut, ultrasonic_cut = full_transform(
                     y, sr, meter, lufs_target, tp_limit, bass_dominance_limit, ultrasonic_limit
                 )
@@ -354,25 +450,25 @@ if uploaded_file is not None:
                 sf.write(buf, y_final, sr, format="WAV", subtype="PCM_16")
                 buf.seek(0)
 
-            st.success("Listo — así quedó el audio después de la corrección:")
+            st.success("Done — this is how the audio looks after correction:")
             r1, r2, r3, r4 = st.columns(4)
-            r1.metric("LUFS final", f"{final_lufs:.1f}", f"objetivo {lufs_target:.1f}")
-            r2.metric("True Peak final", f"{final_tp:.1f} dBTP", f"límite {tp_limit:.1f}")
-            r3.metric("Subgraves atenuados", f"-{bass_cut:.1f} dB" if bass_cut > 0 else "sin cambio")
-            r4.metric("Ultrasónicos atenuados", f"-{ultrasonic_cut:.1f} dB" if ultrasonic_cut > 0 else "sin cambio")
+            r1.metric("Final LUFS", f"{final_lufs:.1f}", f"target {lufs_target:.1f}")
+            r2.metric("Final True Peak", f"{final_tp:.1f} dBTP", f"limit {tp_limit:.1f}")
+            r3.metric("Bass reduced", f"-{bass_cut:.1f} dB" if bass_cut > 0 else "unchanged")
+            r4.metric("Ultrasonic reduced", f"-{ultrasonic_cut:.1f} dB" if ultrasonic_cut > 0 else "unchanged")
 
             if final_bands["bass_dominance"] - bass_dominance_limit > 0.5:
-                st.warning("La dominancia de subgraves quedó ligeramente por encima del límite; puede requerir varias pasadas o un filtro más agresivo.")
+                st.warning("Bass dominance is still slightly above the limit; it may need another pass or a more aggressive EQ profile.")
 
             st.audio(buf, format="audio/wav")
             st.download_button(
-                "⬇️ Descargar audio corregido (.wav)",
-                data=buf, file_name="audio_corregido.wav", mime="audio/wav",
+                "⬇️ Download corrected audio (.wav)",
+                data=buf, file_name="audio_corrected.wav", mime="audio/wav",
             )
-            st.caption("Se exporta en WAV para no perder calidad. Si necesitas MP3 para subir a Roblox, conviértelo con Audacity o un conversor externo antes de subirlo.")
+            st.caption("The file is exported as WAV to preserve quality. If you need MP3 for Roblox, convert it externally with Audacity or another converter before uploading.")
 
-        # ============================== ESPECTRO ==============================
-        st.write("### 📈 Espectro de Frecuencia Normalizado")
+        # ============================== FREQUENCY SPECTRUM ==============================
+        st.write("### 📈 Normalized frequency spectrum")
         plt.style.use('dark_background')
         fig, ax = plt.subplots(figsize=(10, 3.8))
         fig.patch.set_facecolor('#161b22')
