@@ -201,32 +201,70 @@ st.markdown("""
 
 st.components.v1.html("""
 <script>
-  function playTone({ frequency = 440, duration = 0.14, type = 'sine', gain = 0.04 }) {
+  let audioCtx = null;
+
+  function ensureAudio() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!audioCtx) {
+      audioCtx = new AudioCtx();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function playTone({ frequency = 540, duration = 0.08, gain = 0.02, type = 'sine' } = {}) {
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      const ctx = ensureAudio();
+      if (!ctx) return;
       const osc = ctx.createOscillator();
       const gainNode = ctx.createGain();
       osc.type = type;
       osc.frequency.value = frequency;
       gainNode.gain.value = gain;
-      osc.connect(gainNode).connect(ctx.destination);
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
       osc.start();
-      setTimeout(() => { osc.stop(); ctx.close(); }, duration * 1000);
+      const stopAt = ctx.currentTime + duration;
+      gainNode.gain.setValueAtTime(gain, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+      osc.stop(stopAt);
     } catch (e) {}
   }
-  function playStatus(mode = 'ready') {
-    if (mode === 'success') {
-      playTone({ frequency: 660, duration: 0.12, type: 'triangle', gain: 0.05 });
-      setTimeout(() => playTone({ frequency: 880, duration: 0.16, type: 'triangle', gain: 0.05 }), 120);
-    } else {
-      playTone({ frequency: 420, duration: 0.12, type: 'sine', gain: 0.04 });
-    }
+
+  function bindSoundTo(selector, hoverFreq, clickFreq, type = 'sine') {
+    document.querySelectorAll(selector).forEach((el) => {
+      if (el.dataset.soundBound === 'true') return;
+      el.dataset.soundBound = 'true';
+
+      el.addEventListener('pointerover', () => {
+        playTone({ frequency: hoverFreq, duration: 0.06, gain: 0.012, type });
+      }, { passive: true });
+
+      el.addEventListener('pointerdown', () => {
+        playTone({ frequency: clickFreq, duration: 0.12, gain: 0.02, type: 'triangle' });
+      }, { passive: true });
+    });
   }
-  window.addEventListener('load', function () {
-    setTimeout(() => playStatus('ready'), 300);
+
+  function bindAll() {
+    bindSoundTo('button', 520, 700, 'sine');
+    bindSoundTo('[data-testid="stFileUploaderDropzone"]', 430, 620, 'triangle');
+    bindSoundTo('.metric-card', 610, 780, 'triangle');
+    bindSoundTo('input[type="checkbox"]', 560, 740, 'square');
+  }
+
+  window.addEventListener('pointerdown', ensureAudio, { once: true });
+  window.addEventListener('pointerover', ensureAudio, { once: true });
+
+  const observer = new MutationObserver(() => {
+    bindAll();
   });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+  bindAll();
 </script>
 """, height=0)
 
