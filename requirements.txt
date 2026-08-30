@@ -4,3 +4,4 @@ librosa
 matplotlib
 pyloudnorm
 scipy
+soundfile
