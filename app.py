@@ -49,7 +49,7 @@ st.markdown("""
         border-radius: 10px;
     }
     </style>
-""", unsafe_allow_headers=True)
+""", unsafe_allow_html=True)
 
 st.title("🎵 Roblox Audio Moderation Checker Pro")
 st.caption("Verificador avanzado de saturación, balance espectral y prevención de baneo por *Disruptive Audio*.")
@@ -141,7 +141,7 @@ if uploaded_file is not None:
                 <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &lt; 0.0 dB (Max 8.9 dB)</p>
                 <p style="font-size:0.85rem;">{rec}</p>
             </div>
-            """, unsafe_allow_headers=True)
+            """, unsafe_allow_html=True)
 
         # 2. TARJETA SUBGRAVES
         with col2:
@@ -166,7 +166,7 @@ if uploaded_file is not None:
                 <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> &le; 9.5 dB (Max 14.0 dB)</p>
                 <p style="font-size:0.85rem;">{rec}</p>
             </div>
-            """, unsafe_allow_headers=True)
+            """, unsafe_allow_html=True)
 
         # 3. TARJETA AGUDOS
         with col3:
@@ -189,7 +189,7 @@ if uploaded_file is not None:
                 <p style="font-size:0.85rem;"><b>Objetivo Apto:</b> -65.0 dB a -20.0 dB</p>
                 <p style="font-size:0.85rem;">{rec}</p>
             </div>
-            """, unsafe_allow_headers=True)
+            """, unsafe_allow_html=True)
 
         # --- GRÁFICA DE ESPECTRO ---
         st.write("### 📈 Espectro de Frecuencia Normalizado")
