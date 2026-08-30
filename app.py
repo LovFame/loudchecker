@@ -68,7 +68,7 @@ if uploaded_file is not None:
         # Medición por bandas
         sub_bass_mask = (freqs >= 20) & (freqs <= 60)
         mids_mask = (freqs >= 500) & (freqs <= 2000)
-        highs_mask = (freqs >= 10000) & (freqs <= 16000) # Evaluamos solo el rango audible real
+        highs_mask = (freqs >= 10000) & (freqs <= 16000)
 
         sub_bass_val = np.mean(mean_spectrum_db[sub_bass_mask]) if np.any(sub_bass_mask) else -100
         mids_val = np.mean(mean_spectrum_db[mids_mask]) if np.any(mids_mask) else -100
@@ -77,27 +77,29 @@ if uploaded_file is not None:
         # Dominancia de graves
         bass_dominance = sub_bass_val - mids_val
 
-        # --- REGLAS DE EVALUACIÓN REALISTAS ---
+        # --- REGLAS DE EVALUACIÓN ---
         is_no_apto = False
         is_riesgo = False
 
-        # Solo la saturación extrema (> 8.9 dB) o subgraves ultra destructivos (> 28 dB) causan baneo seguro
         if peak_db > 8.9 or bass_dominance > 28.0:
             is_no_apto = True
         elif (0.0 <= peak_db <= 8.9) or (22.0 < bass_dominance <= 28.0) or (highs_val > -15.0):
             is_riesgo = True
 
-        # --- RESULTADO VISUAL Y AUDIO ---
+        # --- RESULTADO VISUAL Y NUEVO AUDIO ---
         st.subheader("📊 Resultado del Diagnóstico")
         
         if is_no_apto:
-            sound_url = "https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3"
+            # Sonido de error/rechazado (Buzzer/Negative UI)
+            sound_url = "https://cdn.pixabay.com/download/audio/2021/08/04/audio_c6ccf3232f.mp3?filename=negative_beeps-6008.mp3"
             st.error("❌ **ESTADO: NO APTO** — Este archivo excede los parámetros extremos y corre riesgo de ser rechazado por *Disruptive Audio*.")
         elif is_riesgo:
-            sound_url = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+            # Sonido de advertencia (Soft Alert)
+            sound_url = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=system-notification-129219.mp3"
             st.warning("⚠️ **ESTADO: PUEDE SER NO APTO** — El audio tiene niveles muy altos de volumen o graves. Podría pasar o ser marcado según el bot.")
         else:
-            sound_url = "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"
+            # Sonido de éxito (Chime UI / Success)
+            sound_url = "https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3?filename=success-1-6297.mp3"
             st.success("✅ **ESTADO: APTO** — El archivo cumple con los márgenes aceptados por Roblox.")
 
         components.html(f"""
