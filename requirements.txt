@@ -1,4 +1,6 @@
 streamlit
-librosa
 numpy
+librosa
 matplotlib
+pyloudnorm
+scipy
