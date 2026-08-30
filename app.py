@@ -141,34 +141,57 @@ motivos que ningún procesamiento de volumen puede corregir: copyright, voces/gr
 """, unsafe_allow_html=True)
 
 # ============================== SIDEBAR: OBJETIVOS ==============================
+DEFAULTS = {
+    "lufs_target": -14.0,
+    "tp_limit": -1.0,
+    "momentary_limit": -8.0,
+    "bass_dominance_limit": 26.0,
+    "ultrasonic_limit": -30.0,
+    "dynamic_range_min": 6.0,
+}
+
 with st.sidebar:
     st.header("🎚️ Objetivos de audio")
-    st.caption("Estos valores se usan para: (1) decidir si tu audio está en riesgo, y (2) como META cuando le des a 'Generar versión corregida' — la app transforma el audio para acercarlo a estos números.")
+    strict_mode = st.toggle("🔒 Modo estricto (valores recomendados)", value=True,
+                             help="Bloquea los umbrales en los valores recomendados por estándares de la industria, para evitar que se aflojen sin querer y la app diga 'apto' cuando no debería.")
+
+    if not strict_mode:
+        st.warning("⚠️ Estás en modo personalizado. Un resultado 'apto' con umbrales aflojados **no significa que Roblox lo vaya a aceptar** — solo cambia lo que esta app te muestra, no el criterio real de Roblox.")
+
+    st.caption("Estos valores se usan para: (1) decidir si tu audio está en riesgo, y (2) como META cuando le des a 'Generar versión corregida'.")
 
     lufs_target = st.slider(
-        "LUFS integrado objetivo", -30.0, -6.0, -14.0, 0.5,
+        "LUFS integrado objetivo", -30.0, -6.0, DEFAULTS["lufs_target"], 0.5, disabled=strict_mode,
         help="Mide el volumen PROMEDIO percibido de todo el audio (no solo el pico). -14 LUFS es la referencia de Spotify/YouTube; -23 LUFS es el estándar de TV (EBU R128), mucho más bajo. Al transformar, la app sube o baja la ganancia de TODO el audio para que el promedio caiga en este número. Si lo pones muy alto (ej. -6), el audio quedará muy fuerte y es más probable que choque con el límite de True Peak de abajo."
     )
     tp_limit = st.slider(
-        "True Peak máximo (dBTP)", -6.0, 0.0, -1.0, 0.1,
+        "True Peak máximo (dBTP)", -6.0, 0.0, DEFAULTS["tp_limit"], 0.1, disabled=strict_mode,
         help="El pico REAL de la onda, incluyendo los picos 'entre muestras' que aparecen al reconstruir el audio en un DAC o al convertir a MP3 (por eso es distinto del pico normal que ves en un editor). Si el True Peak es muy alto (cercano a 0 dBTP), el audio puede distorsionarse al reproducirse o al re-codificarse. Al transformar, si subir el volumen para llegar al LUFS objetivo haría que el True Peak superara este límite, la app reduce la ganancia lo necesario para respetarlo — por eso a veces el LUFS final no llega exacto al objetivo."
     )
     momentary_limit = st.slider(
-        "Loudness momentáneo máx. (LUFS, ráfagas)", -20.0, -3.0, -8.0, 0.5,
+        "Loudness momentáneo máx. (LUFS, ráfagas)", -20.0, -3.0, DEFAULTS["momentary_limit"], 0.5, disabled=strict_mode,
         help="Loudness medido en ventanas cortas (400ms) en vez de todo el audio. Detecta RÁFAGAS o impactos repentinos (un grito, un golpe fuerte) que pueden disparar 'Disruptive Audio' aunque el promedio general del audio sea bajo. Este valor solo se usa para el DIAGNÓSTICO (marcar riesgo); la corrección automática no aplica un limitador de ráfagas independiente, solo el techo de True Peak general."
     )
     bass_dominance_limit = st.slider(
-        "Dominancia de subgraves máx. (dB vs medios)", 10.0, 35.0, 26.0, 1.0,
+        "Dominancia de subgraves máx. (dB vs medios)", 10.0, 35.0, DEFAULTS["bass_dominance_limit"], 1.0, disabled=strict_mode,
         help="Compara qué tan fuerte está la banda de 20-60 Hz (subgraves) frente a la banda de 500-2000 Hz (medios, donde está la mayoría de la voz e instrumentos). Un valor alto significa graves exagerados tipo 'bocina de auto'. Al transformar, si tu audio excede este límite, la app aplica un EQ que atenúa específicamente la banda de 20-60 Hz hasta bajar la dominancia a este número — no toca el resto del espectro."
     )
     ultrasonic_limit = st.slider(
-        "Ruido ultrasónico máx. (dB, >17kHz)", -50.0, -10.0, -30.0, 1.0,
+        "Ruido ultrasónico máx. (dB, >17kHz)", -50.0, -10.0, DEFAULTS["ultrasonic_limit"], 1.0, disabled=strict_mode,
         help="Energía por encima de 17kHz, normalmente inaudible para la mayoría de las personas pero que puede colarse como ruido de compresión o de un micrófono defectuoso. Al transformar, si tu audio excede este límite, la app aplica un filtro que atenúa específicamente las frecuencias por encima de 17kHz — es seguro quitarlo porque casi nadie lo escucha de todas formas."
     )
     dynamic_range_min = st.slider(
-        "Rango dinámico mínimo (dB)", 1.0, 15.0, 6.0, 0.5,
+        "Rango dinámico mínimo (dB)", 1.0, 15.0, DEFAULTS["dynamic_range_min"], 0.5, disabled=strict_mode,
         help="Diferencia entre el pico más alto y el volumen promedio. Un valor bajo significa que el audio está muy comprimido/'aplastado' (suena como un muro de ruido constante, sin variación). IMPORTANTE: esto solo se usa para DIAGNÓSTICO. Si tu audio original ya viene muy comprimido, esta app NO puede 'devolverle' la dinámica perdida — esa información ya no existe en la señal. La única solución real es partir de una versión menos comprimida del audio original."
     )
+
+    if strict_mode:
+        lufs_target = DEFAULTS["lufs_target"]
+        tp_limit = DEFAULTS["tp_limit"]
+        momentary_limit = DEFAULTS["momentary_limit"]
+        bass_dominance_limit = DEFAULTS["bass_dominance_limit"]
+        ultrasonic_limit = DEFAULTS["ultrasonic_limit"]
+        dynamic_range_min = DEFAULTS["dynamic_range_min"]
 
 uploaded_file = st.file_uploader("Sube tu archivo de audio (MP3 / WAV)", type=["mp3", "wav"])
 
@@ -241,6 +264,7 @@ if uploaded_file is not None:
             st.warning("⚠️ **RIESGO MODERADO — algunos parámetros al límite**")
         else:
             st.success("✅ **DENTRO DE ESTÁNDARES — loudness, picos y espectro dentro de rangos seguros**")
+            st.caption("Esto significa que el audio cumple buenas prácticas de mastering (LUFS, True Peak, espectro). **No es una garantía de que Roblox lo vaya a aceptar** — su moderación también analiza el contenido del sonido (voces, gritos, distorsión perceptual) de una forma que esta app no puede replicar.")
 
         if reasons:
             st.write("**Motivos detectados:**")
