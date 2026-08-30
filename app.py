@@ -17,74 +17,92 @@ if uploaded_file is not None:
         # Cargar audio
         y, sr = librosa.load(uploaded_file, sr=None)
         
-        # 1. Medición de Pico Máximo Real (dBFS)
+        # 1. Pico Máximo (dBFS real en el dominio del tiempo)
         max_amplitude = np.max(np.abs(y))
         peak_db = 20 * np.log10(max_amplitude) if max_amplitude > 0 else -100.0
         
-        # 2. Análisis Espectral (STFT absoluto)
+        # 2. Análisis Espectral Normalizado (Relación de frecuencias real)
         n_fft = 2048
         S = np.abs(librosa.stft(y, n_fft=n_fft))
+        # Normalizamos la STFT al pico más alto del espectro para tener escala dBFS estándar
+        S_norm = S / (np.max(S) + 1e-6)
         
         freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-        mean_spectrum = np.mean(S, axis=1)
-        # Convertir a dBFS absolutos
-        mean_spectrum_db = 20 * np.log10(mean_spectrum + 1e-6)
+        mean_spectrum_db = 20 * np.log10(np.mean(S_norm, axis=1) + 1e-6)
         
-        # Filtros de banda de frecuencia
+        # Medición de bandas relativas
         sub_bass_mask = (freqs >= 20) & (freqs <= 60)
-        sub_bass_mean = np.mean(mean_spectrum_db[sub_bass_mask]) if np.any(sub_bass_mask) else -100
-        
-        ultra_high_mask = freqs >= 15000
-        ultra_high_mean = np.mean(mean_spectrum_db[ultra_high_mask]) if np.any(ultra_high_mask) else -100
+        mids_mask = (freqs >= 500) & (freqs <= 2000)
+        highs_mask = freqs >= 12000
 
-        # --- EVALUACIÓN GENERAL DE ESTADO ---
-        is_no_apto = peak_db > 8.9 or sub_bass_mean > -18.0
-        is_riesgo = (0.0 <= peak_db <= 8.9) or (-25.0 < sub_bass_mean <= -18.0) or (ultra_high_mean > -20.0)
+        sub_bass_val = np.mean(mean_spectrum_db[sub_bass_mask]) if np.any(sub_bass_mask) else -100
+        mids_val = np.mean(mean_spectrum_db[mids_mask]) if np.any(mids_mask) else -100
+        highs_val = np.mean(mean_spectrum_db[highs_mask]) if np.any(highs_mask) else -100
+
+        # Diferencia de subgraves vs medios (balance tonal)
+        bass_dominance = sub_bass_val - mids_val
+
+        # --- EVALUACIÓN DE ESTADO ---
+        is_no_apto = False
+        is_riesgo = False
+
+        # Regla 1: Picos según tus rangos
+        if peak_db > 8.9:
+            is_no_apto = True
+        elif 0.0 <= peak_db <= 8.9:
+            is_riesgo = True
+
+        # Regla 2: Desbalance extremo de graves vs medios (Baneo seguro por Disruptive)
+        if bass_dominance > 22.0:
+            is_no_apto = True
+        elif bass_dominance > 15.0:
+            is_riesgo = True
 
         st.subheader("📊 Resultado de Evaluación")
 
         if is_no_apto:
-            st.error("❌ **ESTADO: NO APTO**\n\nEste archivo superó los límites permitidos y corre alto riesgo de ser rechazado.")
+            st.error("❌ **ESTADO: NO APTO**\n\nEste archivo excede los límites o tiene un desbalance extremo de graves.")
         elif is_riesgo:
             st.warning("⚠️ **ESTADO: PUEDE SER NO APTO!**\n\nEl audio está en zona límite de moderación.")
         else:
-            st.success("✅ **ESTADO: APTO**\n\nEl audio cumple con los márgenes de volumen y espectro seguro.")
+            st.success("✅ **ESTADO: APTO**\n\nEl archivo cumple con los márgenes de volumen y espectro seguro.")
 
-        # --- MOSTRAR SIEMPRE TODOS LOS DATOS TÉCNICOS ---
+        # --- DESGLOSE DE PARÁMETROS ---
         st.write("**Desglose detallado del análisis:**")
 
-        # Registro 1: Pico y Saturación
+        # Pico
         if peak_db > 8.9:
-            st.markdown(f"🔴 **Pico Máximo (dBFS):** `{peak_db:.2f} dB` — **Saturación Crítica** (Supera el límite de 8.9 dB).")
+            st.markdown(f"🔴 **Pico Máximo:** `{peak_db:.2f} dB` — **Saturación Crítica** (Mayor a 8.9 dB).")
         elif peak_db >= 0.0:
-            st.markdown(f"🟡 **Pico Máximo (dBFS):** `{peak_db:.2f} dB` — **Riesgo de Saturación** (Entre 0.0 y 8.9 dB).")
+            st.markdown(f"🟡 **Pico Máximo:** `{peak_db:.2f} dB` — **En zona de riesgo** (Entre 0.0 y 8.9 dB).")
         else:
-            st.markdown(f"🟢 **Pico Máximo (dBFS):** `{peak_db:.2f} dB` — **Nivel Seguro** (Por debajo de 0.0 dB).")
+            st.markdown(f"🟢 **Pico Máximo:** `{peak_db:.2f} dB` — **Nivel Seguro** (Menor a 0.0 dB).")
 
-        # Registro 2: Subgraves
-        if sub_bass_mean > -18.0:
-            st.markdown(f"🔴 **Subgraves (<60 Hz):** `{sub_bass_mean:.1f} dB` medio — **Excesivo** (Riesgo alto de Disruptive Audio).")
-        elif sub_bass_mean > -25.0:
-            st.markdown(f"🟡 **Subgraves (<60 Hz):** `{sub_bass_mean:.1f} dB` medio — **Elevado**.")
+        # Subgraves
+        if bass_dominance > 22.0:
+            st.markdown(f"🔴 **Balance de Subgraves (<60 Hz):** Dominancia de `{bass_dominance:.1f} dB` sobre medios — **Excesivo** (Riesgo de Disruptive Audio).")
+        elif bass_dominance > 15.0:
+            st.markdown(f"🟡 **Balance de Subgraves (<60 Hz):** Dominancia de `{bass_dominance:.1f} dB` sobre medios — **Elevado**.")
         else:
-            st.markdown(f"🟢 **Subgraves (<60 Hz):** `{sub_bass_mean:.1f} dB` medio — **Normal**.")
+            st.markdown(f"🟢 **Balance de Subgraves (<60 Hz):** Dominancia de `{bass_dominance:.1f} dB` sobre medios — **Equilibrado**.")
 
-        # Registro 3: Agudos
-        if ultra_high_mean > -20.0:
-            st.markdown(f"🟡 **Agudos (>15 kHz):** `{ultra_high_mean:.1f} dB` medio — **Muy Altos**.")
+        # Agudos
+        if highs_val > -25.0:
+            st.markdown(f"🟡 **Agudos (>12 kHz):** Nivel relativo en `{highs_val:.1f} dB` — **Muy Altos**.")
         else:
-            st.markdown(f"🟢 **Agudos (>15 kHz):** `{ultra_high_mean:.1f} dB` medio — **Equilibrados**.")
+            st.markdown(f"🟢 **Agudos (>12 kHz):** Nivel relativo en `{highs_val:.1f} dB` — **Equilibrado**.")
 
-        # --- GRÁFICA DE ESPECTRO ---
+        # --- GRÁFICA DE ESPECTRO NORMALIZADA ---
         st.subheader("📈 Análisis de Espectro (Frecuencias)")
         fig, ax = plt.subplots(figsize=(10, 4))
         ax.plot(freqs, mean_spectrum_db, color='#8a2be2')
         ax.set_xscale('log')
         ax.set_xlim(20, sr // 2)
-        ax.axvspan(20, 60, color='red', alpha=0.15, label='Zona de riesgo por Subgraves')
-        ax.set_title("Espectro de Frecuencia (Hz vs dBFS)")
+        ax.set_ylim(-70, 5)
+        ax.axvspan(20, 60, color='red', alpha=0.15, label='Zona de Subgraves')
+        ax.set_title("Espectro de Frecuencia Relativo (dBFS)")
         ax.set_xlabel("Frecuencia (Hz)")
-        ax.set_ylabel("Amplitud Real (dBFS)")
+        ax.set_ylabel("Amplitud Relativa (dB)")
         ax.legend()
         ax.grid(True, which="both", ls="--", alpha=0.5)
         st.pyplot(fig)
