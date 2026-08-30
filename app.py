@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Roblox Audio Moderation Checker", page_icon="🎵")
 
-st.title("🎵Roblox Mod Detection")
+st.title("🎵 Roblox Mod Detection!")
 st.write("Sube tu archivo de audio para analizar picos (dBFS), saturación y distribución de frecuencias.")
 
 uploaded_file = st.file_uploader("Selecciona tu archivo de audio (MP3 o WAV)", type=["mp3", "wav"])
@@ -38,43 +38,38 @@ if uploaded_file is not None:
         ultra_high_mask = freqs >= 16000
         ultra_high_max = np.max(mean_spectrum_db[ultra_high_mask]) if np.any(ultra_high_mask) else -100
 
-        # --- EVALUACIÓN CORREGIDA ---
+# --- EVALUACIÓN CORREGIDA ---
         st.subheader("📊 Resultado de Evaluación")
         
         reasons = []
-        status = "APTO"
 
-        # Criterio 1: Clipping Digital (Picos por encima de -0.3 dBFS)
-        if peak_db > -0.3:
+        # Regla de evaluación según el valor del pico (peak_db)
+        if peak_db > 8.9:
             status = "NO APTO"
-            reasons.append(f"🔴 **Saturación Digital/Clipping:** El pico alcanza **{peak_db:.2f} dBFS** (Supera 0 dBFS o roza el límite). Puede causar distorsión.")
-        elif peak_db > -1.0:
-            if status != "NO APTO": status = "POSIBLEMENTE APTO (RIESGO MEDIO)"
-            reasons.append(f"🟡 **Pico Ajustado:** El pico alcanza **{peak_db:.2f} dBFS**. Se recomienda dar margen hasta -1.0 dBFS.")
+            st.error(f"❌ **ESTADO: NO APTO**\n\nEl pico alcanza **{peak_db:.2f} dB**, superando el límite crítico de 8.9 dB. Este archivo tiene altas probabilidades de ser rechazado por Disruptive Audio.")
+            reasons.append(f"🔴 **Exceso de volumen/saturación:** El nivel medido es de **{peak_db:.2f} dB** (mayor a 8.9 dB).")
 
-        # Criterio 2: Acumulación excesiva de Subgraves
-        if sub_bass_max > -3.0 and peak_db > -1.0:
-            if status != "NO APTO": status = "POSIBLEMENTE APTO (RIESGO MEDIO)"
+        elif peak_db >= 0.0 and peak_db <= 8.9:
+            status = "PUEDE SER NO APTO!"
+            st.warning(f"⚠️ **ESTADO: PUEDE SER NO APTO!**\n\nEl pico está entre 0.0 y 8.9 dB (**{peak_db:.2f} dB**). Dependiendo del tipo de sonido y los graves, el bot podría marcarlo o pasarlo.")
+            reasons.append(f"🟡 **Zona de Riesgo:** El nivel medido es de **{peak_db:.2f} dB** (está en el rango de 0.0 a 8.9 dB).")
+
+        else: # Menor a 0.0 dB
+            status = "APTO"
+            st.success(f"✅ **ESTADO: APTO**\n\nEl pico está por debajo de 0.0 dB (**{peak_db:.2f} dB**). Está dentro de los niveles digitales seguros.")
+
+        # Advertencias secundarias de frecuencias
+        if sub_bass_max > -3.0:
             reasons.append(f"🟡 **Subgraves Fuertes:** Acumulación alta en frecuencias menores a 45 Hz ({sub_bass_max:.1f} dB rel).")
 
-        # Criterio 3: Agudos estridentes
         if ultra_high_max > -15.0:
-            if status != "NO APTO": status = "POSIBLEMENTE APTO (RIESGO MEDIO)"
             reasons.append(f"🟡 **Agudos Altos:** Frecuencias altas por encima de 16,000 Hz ({ultra_high_max:.1f} dB rel).")
 
-        # Mostrar estado según los resultados reales
-        if status == "APTO":
-            st.success(f"✅ **ESTADO: APTO**\n\nPico máximo real: **{peak_db:.2f} dBFS**. El audio está dentro del rango seguro y no presenta clipping descontrolado.")
-        elif status == "POSIBLEMENTE APTO (RIESGO MEDIO)":
-            st.warning(f"⚠️ **ESTADO: POSIBLEMENTE APTO (RIESGO MEDIO)**\n\nPico máximo: **{peak_db:.2f} dBFS**.")
-        else:
-            st.error(f"❌ **ESTADO: NO APTO**\n\nPico máximo: **{peak_db:.2f} dBFS**.")
-
         if reasons:
-            st.write("**Detalles:**")
+            st.write("**Detalles del análisis:**")
             for r in reasons:
                 st.markdown(r)
-
+                
         # --- GRÁFICA CORREGIDA ---
         st.subheader("📈 Análisis de Espectro (Frecuencias)")
         fig, ax = plt.subplots(figsize=(10, 4))
